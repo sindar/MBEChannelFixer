@@ -30,7 +30,7 @@
         {
             this.components = new System.ComponentModel.Container();
             this.CloseTimer = new System.Windows.Forms.Timer(this.components);
-            this.label1 = new System.Windows.Forms.Label();
+            this.MainLabel = new System.Windows.Forms.Label();
             this.RefreshTimer = new System.Windows.Forms.Timer(this.components);
             this.HideTimer = new System.Windows.Forms.Timer(this.components);
             this.SuspendLayout();
@@ -40,15 +40,16 @@
             this.CloseTimer.Interval = 1000;
             this.CloseTimer.Tick += new System.EventHandler(this.CloseTimer_Tick);
             // 
-            // label1
+            // MainLabel
             // 
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.label1.Location = new System.Drawing.Point(-4, 30);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(385, 16);
-            this.label1.TabIndex = 0;
-            this.label1.Text = "Идёт проверка ip-адресов канала драйвера MBE...";
+            this.MainLabel.AutoSize = true;
+            this.MainLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
+            this.MainLabel.Location = new System.Drawing.Point(-8, 58);
+            this.MainLabel.Margin = new System.Windows.Forms.Padding(6, 0, 6, 0);
+            this.MainLabel.Name = "MainLabel";
+            this.MainLabel.Size = new System.Drawing.Size(668, 30);
+            this.MainLabel.TabIndex = 0;
+            this.MainLabel.Text = "Идёт проверка ip-адресов канала драйвера MBE...";
             // 
             // RefreshTimer
             // 
@@ -62,10 +63,11 @@
             // 
             // MainForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(379, 84);
-            this.Controls.Add(this.label1);
+            this.ClientSize = new System.Drawing.Size(758, 162);
+            this.Controls.Add(this.MainLabel);
+            this.Margin = new System.Windows.Forms.Padding(6, 6, 6, 6);
             this.Name = "MainForm";
             this.Text = "ChannelFixer";
             this.Leave += new System.EventHandler(this.MainForm_Leave);
@@ -77,7 +79,7 @@
         #endregion
 
         private System.Windows.Forms.Timer CloseTimer;
-        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Label MainLabel;
         private System.Windows.Forms.Timer RefreshTimer;
         private System.Windows.Forms.Timer HideTimer;
     }

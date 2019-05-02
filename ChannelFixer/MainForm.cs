@@ -23,10 +23,20 @@ namespace ChannelFixer
        
         int NumChannels;
 
-        string MainChannelName="";
-        int MainChannelNumber = 0;
-        string PrimaryNIC_IP = "";
-        string BackupNIC_IP = "";
+        private class channelParams
+        {
+            public string ChannelName { get; set; }
+            public string PrimaryNIC_IP { get; set; }
+            public string BackupNIC_IP { get; set; }
+            public channelParams(string chName, string primIP, string backIP)
+            {
+                ChannelName = chName;
+                PrimaryNIC_IP = primIP;
+                BackupNIC_IP = backIP;
+            }
+        }
+
+        channelParams[] channelsToFix;
 
         enum NICType {primary, backup};
 
@@ -38,21 +48,20 @@ namespace ChannelFixer
             {
                 MbeServ = new MBEServer();
 
-                if (ReadConfigFile(configFile))
+                if (!ReadConfigFile(configFile))
                 {
-                    CloseTimer.Interval = 100;
+                    CloseTimer.Interval = 5000;
                     CloseTimer.Enabled = true;
                     return;
                 }
                 
                 GetChannels();
-                ChannelIPFix();
                 RefreshTimer.Enabled = true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + "\nПриложение будет закрыто.");
-                CloseTimer.Interval = 100;
+                MainLabel.Text = ex.Message + "\nПриложение будет закрыто.";
+                CloseTimer.Interval = 5000;
                 CloseTimer.Enabled = true;
             }
         }
@@ -60,8 +69,10 @@ namespace ChannelFixer
         private bool ReadConfigFile(string configFile)
         {
             StreamReader FileIn;
-            string[] settings = new string[3];
+            var settings = new ArrayList();
             int i = 0;
+            int chanNum;
+            int j;
 
             try
             {
@@ -69,39 +80,51 @@ namespace ChannelFixer
             }
             catch (IOException exc)
             {
-                MessageBox.Show("Ошибка открытия конфигурационного файла!\n" + exc.Message);
-                return true;
+                MainLabel.Text = "Ошибка открытия конфигурационного файла!\n" + exc.Message;
+                return false;
             }
 
             try
             {
                 while (!FileIn.EndOfStream)
                 {
-                    settings[i] += FileIn.ReadLine();
+                    settings.Add(FileIn.ReadLine());
                     if (FileIn.EndOfStream && (i < 2))
                     {
-                        MessageBox.Show("Файл настроек должен состоять минимум из 3-х строк!");
-                        return true;
+                        MainLabel.Text = "Файл настроек должен состоять минимум из 3-х строк!";
+                        return false;
                     }
-                    if (i == 2)
-                    {
-                        MainChannelName = settings[0];
-                        PrimaryNIC_IP = settings[1];
-                        BackupNIC_IP = settings[2];
-                        break;
-                    }
-                    i++;
+                    ++i;
+                }
+
+                if((i % 3) != 0)
+                {
+                    MainLabel.Text = "Настройки для каждого канала должны" +
+                                    "состоять ровно из 3-х строк!";
+                    return false;
+                }
+
+                chanNum = i / 3;
+
+                channelsToFix = new channelParams[chanNum];
+
+                for (i = 0; i < chanNum; ++i)
+                {
+                    j = i * 3;
+                    channelsToFix[i] = new channelParams((string)settings[j + 0],
+                                                         (string)settings[j + 1],
+                                                         (string)settings[j + 2]);
                 }
             }
             catch (IOException exc)
             {
-                MessageBox.Show("Ошибка чтения файла:\n" + exc.Message);
+                MainLabel.Text = "Ошибка чтения файла:\n" + exc.Message;
             }
             finally
             {
                 FileIn.Close();
             }
-            return false;
+            return true;
         }
 
         //Считывание доступных каналов
@@ -113,73 +136,89 @@ namespace ChannelFixer
         }
 
         //Проверка ip-канала и исправление его в случае необходимости
-        private void ChannelIPFix()
+        private bool ChannelIPFix(channelParams channelToFix)
         {
             int i = 0;
-            bool bCheck = false;
+            bool checkName = false;
+            bool isPrimIPChanged = false;
+            bool isBackIPChanged = false;
+            bool noError = true;
+            int chanNumber = 0;
 
-            foreach(object channel in ChannelNames)
+            foreach(object chanName in ChannelNames)
             {
-                if (MainChannelName.Equals(channel))
+                if (channelToFix.ChannelName.Equals(chanName))
                 {
-                    bCheck = true;
-                    MainChannelNumber = i;
+                    chanNumber = i;
+                    checkName = true;
                     break;
                 }
-                i++;
+                ++i;
             }
 
-            if (bCheck)
+            if (checkName)
             {
-                MbeServ.GetPropertyData((int)ChannelHandles[MainChannelNumber], (object)"PrimaryInterfaceDesc", ref ptrPropertyData);
-                if (!Convert.ToString(ptrPropertyData).Contains(PrimaryNIC_IP))
-                    SetChannelIP(NICType.primary);
+                MbeServ.GetPropertyData((int)ChannelHandles[chanNumber], (object)"PrimaryInterfaceDesc", ref ptrPropertyData);
+                if (!Convert.ToString(ptrPropertyData).Contains(channelToFix.PrimaryNIC_IP)) 
+                {
+                    isPrimIPChanged = SetChannelIP(NICType.primary, channelToFix, chanNumber);
+                }
 
-                MbeServ.GetPropertyData((int)ChannelHandles[MainChannelNumber], (object)"BackupInterfaceDesc", ref ptrPropertyData);
-                if (!Convert.ToString(ptrPropertyData).Contains(BackupNIC_IP))
-                    SetChannelIP(NICType.backup);
+                MbeServ.GetPropertyData((int)ChannelHandles[chanNumber], (object)"BackupInterfaceDesc", ref ptrPropertyData);
+                if (!Convert.ToString(ptrPropertyData).Contains(channelToFix.BackupNIC_IP))
+                {
+                    isBackIPChanged = SetChannelIP(NICType.backup, channelToFix, chanNumber);
+                }
 
-                MbeServ.FileSave();
+                if(isPrimIPChanged || isBackIPChanged)
+                    MbeServ.FileSave();
+
                 HideTimer.Interval = 5000;
                 HideTimer.Enabled = true;
             }
             else
-            {
-                MessageBox.Show("Заданный канал не найден в списке каналов!");
-                CloseTimer.Interval = 100;
-                CloseTimer.Enabled = true;
-                return;
-            }            
+                noError = false;
+            return noError;
         }
 
-        private void SetChannelIP(NICType ntype)
+        private bool SetChannelIP(NICType ntype, channelParams channelToFix,
+                                  int channelNumber)
         {
             string sNICType;
             string sNICDesc;
             string sNIC_IP;
+            bool isIPChanged = false;
 
             if (ntype == NICType.primary)
             {
                 sNICType = "PrimaryNetworkInterface";
                 sNICDesc = "PrimaryInterfaceDesc";
-                sNIC_IP = PrimaryNIC_IP;
+                sNIC_IP = channelToFix.PrimaryNIC_IP;
             }
             else
             {
                 sNICType = "BackupNetworkInterface";
                 sNICDesc = "BackupInterfaceDesc";
-                sNIC_IP = BackupNIC_IP;
+                sNIC_IP = channelToFix.BackupNIC_IP;
             }
 
-            for (int i = 0; i < 128; i++)
+            MbeServ.GetPropertyData((int)ChannelHandles[channelNumber], (object)sNICDesc, ref ptrPropertyData);
+            if (!Convert.ToString(ptrPropertyData).Contains(sNIC_IP))
             {
-                MbeServ.SetPropertyData((int)ChannelHandles[MainChannelNumber], (object)sNICType, i);
+                for (int i = 0; i < 128; i++)
+                {
+                    MbeServ.SetPropertyData((int)ChannelHandles[channelNumber], (object)sNICType, i);
+                    MbeServ.GetPropertyData((int)ChannelHandles[channelNumber], (object)sNICDesc, ref ptrPropertyData);
 
-                MbeServ.GetPropertyData((int)ChannelHandles[MainChannelNumber], (object)sNICDesc, ref ptrPropertyData);
-
-                if (Convert.ToString(ptrPropertyData).Contains(sNIC_IP))
-                    break;
+                    if (Convert.ToString(ptrPropertyData).Contains(sNIC_IP))
+                    {
+                        isIPChanged = true;
+                        break;
+                    }
+                }
             }
+
+            return isIPChanged;
         }
 
         private void CloseTimer_Tick(object sender, EventArgs e)
@@ -189,15 +228,16 @@ namespace ChannelFixer
 
         private void RefreshTimer_Tick(object sender, EventArgs e)
         {           
-            try
-            {
-                ChannelIPFix();
-            }
-            catch (Exception ex)
-            {
-                RefreshTimer.Enabled = false;
-                MessageBox.Show(ex.Message);
-            }
+            foreach(channelParams chToFix in channelsToFix)
+                if (!ChannelIPFix(chToFix))
+                {
+                    RefreshTimer.Enabled = false;
+                    CloseTimer.Interval = 5000;
+                    CloseTimer.Enabled = true;
+                    MainLabel.Text = "Заданный канал не найден в списке каналов!" +
+                                     "Приложение будет закрыто." ;
+                    break;
+                }
         }
 
         private void HideTimer_Tick(object sender, EventArgs e)
